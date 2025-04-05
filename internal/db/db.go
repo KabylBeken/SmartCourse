@@ -17,7 +17,7 @@ var DB *gorm.DB
 
 func InitDB() {
 	dbHost := "localhost"
-	dbName := "mydatabase"
+	dbName := "smartcourse"
 	dbUser := "myuser"
 	dbPass := "mypassword"
 	dbPort := "5444"

@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS grades;
+DROP TABLE IF EXISTS assignments;
+DROP TABLE IF EXISTS course_students;
+DROP TABLE IF EXISTS courses;
+DROP TABLE IF EXISTS users; 
