@@ -1,0 +1,26 @@
+# Git files
+.git
+.gitignore
+
+# Docker files
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Editor files
+.idea
+.vscode
+
+# OS files
+.DS_Store
+
+# Build files
+/bin
+/tmp
+
+# Logs
+*.log
+
+# Local environment files
+.env
+.env.local 

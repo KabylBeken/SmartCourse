@@ -18,10 +18,10 @@ func SetupRoutes(r *gin.Engine) {
 	gradeRepo := repository.NewGradeRepository(db.DB)
 	
 	// Инициализация сервисов
-	userService := service.NewUserService(userRepo)
+	_ = service.NewUserService(userRepo) // Пока не используется
 	courseService := service.NewCourseService(courseRepo, userRepo)
-	assignmentService := service.NewAssignmentService(assignmentRepo, courseRepo, userRepo)
-	gradeService := service.NewGradeService(gradeRepo, assignmentRepo, courseRepo, userRepo)
+	_ = service.NewAssignmentService(assignmentRepo, courseRepo, userRepo) // Пока не используется
+	_ = service.NewGradeService(gradeRepo, assignmentRepo, courseRepo, userRepo) // Пока не используется
 	
 	// Инициализация обработчиков
 	courseHandler := delivery.NewCourseHandler(courseService)
