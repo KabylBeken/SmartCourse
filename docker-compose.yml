@@ -1,26 +1,28 @@
 version: '3.8'
 
 services:
-  api:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: smart-course-api
-    depends_on:
-      - postgres
+    container_name: smart-course-app
+    restart: always
     ports:
-      - "8080:8080"
+      - "8083:8080"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=myuser
       - DB_PASSWORD=mypassword
       - DB_NAME=smartcourse
-    restart: always
+      - MONGO_URI=mongodb://mongodb:27017/smartcourse
+    depends_on:
+      - postgres
+      - mongodb
 
   postgres:
     image: postgres:17.4-alpine
-    container_name: go-postgres
+    container_name: go-postgres-new
     restart: always
     environment:
       POSTGRES_USER: myuser
@@ -30,6 +32,16 @@ services:
       - "5444:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      
+  mongodb:
+    image: mongo:6.0
+    container_name: go-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
 
 volumes:
   postgres_data:
+  mongodb_data:

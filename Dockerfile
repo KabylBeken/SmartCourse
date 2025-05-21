@@ -1,35 +1,36 @@
-# Используем официальный образ Go как базовый образ для сборки
 FROM golang:1.23-alpine AS builder
 
-# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы go.mod и go.sum для скачивания зависимостей
-COPY go.mod go.sum ./
 
-# Скачиваем зависимости
+COPY go.mod go.sum ./
 RUN go mod download
 
-# Копируем исходный код приложения
+
 COPY . .
 
-# Собираем приложение
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/smart-course ./cmd/main.go
 
-# Используем минимальный образ для запуска приложения
-FROM alpine:latest
+RUN CGO_ENABLED=0 GOOS=linux go build -o smart-course ./cmd/main.go
 
-# Устанавливаем зависимости для миграций
-RUN apk --no-cache add ca-certificates
+# образ
+FROM alpine:3.19
 
 WORKDIR /app
 
-# Копируем скомпилированное приложение из этапа сборки
-COPY --from=builder /app/smart-course .
-COPY --from=builder /app/internal/db/migrations /app/internal/db/migrations
+# Устанавливаем необходимые пакеты
+RUN apk add --no-cache curl 
 
-# Открываем порт для API
+COPY --from=builder /app/smart-course .
+# Копируем миграции
+COPY --from=builder /app/internal/db/migrations ./internal/db/migrations
+
+# Настраиваем healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+ENV GIN_MODE=release
+ENV PORT=8080
+
 EXPOSE 8080
 
-# Запускаем приложение
-CMD ["/app/smart-course"] 
+CMD ["./smart-course"]

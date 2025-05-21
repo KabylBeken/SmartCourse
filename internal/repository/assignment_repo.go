@@ -12,6 +12,8 @@ type AssignmentRepository interface {
 	Update(id uint, assignment *models.Assignment) error
 	Delete(id uint) error
 	GetAssignmentsByCourseID(courseID uint) ([]models.Assignment, error)
+	// GetByIDWithDeleted возвращает задание по ID, включая удаленные
+	GetByIDWithDeleted(id uint) (*models.Assignment, error)
 }
 
 type AssignmentRepositoryImpl struct {
@@ -30,7 +32,8 @@ func (r *AssignmentRepositoryImpl) GetAll() ([]models.Assignment, error) {
 
 func (r *AssignmentRepositoryImpl) GetByID(id uint) (*models.Assignment, error) {
 	var assignment models.Assignment
-	err := r.db.First(&assignment, id).Error
+	// Используем Unscoped для поиска, включая мягко удаленные записи
+	err := r.db.Unscoped().First(&assignment, id).Error
 	return &assignment, err
 }
 
@@ -50,4 +53,12 @@ func (r *AssignmentRepositoryImpl) GetAssignmentsByCourseID(courseID uint) ([]mo
 	var assignments []models.Assignment
 	err := r.db.Where("course_id = ?", courseID).Find(&assignments).Error
 	return assignments, err
-} 
+}
+
+// GetByIDWithDeleted возвращает задание по ID, включая удаленные
+func (r *AssignmentRepositoryImpl) GetByIDWithDeleted(id uint) (*models.Assignment, error) {
+	var assignment models.Assignment
+	// Используем Unscoped() для включения soft deleted записей
+	err := r.db.Unscoped().First(&assignment, id).Error
+	return &assignment, err
+}

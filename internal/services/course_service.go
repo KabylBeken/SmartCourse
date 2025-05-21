@@ -1,4 +1,4 @@
-package service
+package services
 
 import (
 	"errors"
@@ -78,6 +78,11 @@ func (s *CourseService) GetCoursesByTeacher(teacherID uint) ([]models.Course, er
 // GetCoursesByStudent возвращает курсы студента
 func (s *CourseService) GetCoursesByStudent(studentID uint) ([]models.Course, error) {
 	return s.repo.GetCoursesByStudentID(studentID)
+}
+
+// GetStudentCourses синоним метода GetCoursesByStudent для согласованности имен в API
+func (s *CourseService) GetStudentCourses(studentID uint) ([]models.Course, error) {
+	return s.GetCoursesByStudent(studentID)
 }
 
 // AddStudentToCourse добавляет студента на курс

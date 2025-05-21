@@ -2,73 +2,119 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
-	"rest-project/internal/db"
-	"rest-project/internal/models"
 	"strings"
+	"rest-project/internal/utils"
 )
 
-// AuthMiddleware проверяет JWT токен и добавляет ID пользователя в контекст
+// Claims представляет данные, хранящиеся в JWT токене
+type Claims struct {
+	UserID   uint   `json:"user_id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	jwt.RegisteredClaims
+}
+
+// AuthMiddleware проверяет JWT токен для аутентификации
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+		tokenString := c.GetHeader("Authorization")
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Требуется авторизация"})
 			c.Abort()
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer {token}"})
-			c.Abort()
-			return
+		// Обрезаем префикс "Bearer " если он есть
+		if len(tokenString) > 7 && strings.ToUpper(tokenString[0:7]) == "BEARER " {
+			tokenString = tokenString[7:]
 		}
 
-		tokenString := parts[1]
-		userID, err := validateToken(tokenString)
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(
+			tokenString, 
+			claims, 
+			func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("неожиданный метод подписи: %v", token.Header["alg"])
+				}
+				return []byte(JWTSecret), nil
+			},
+		)
+
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			if err == jwt.ErrTokenExpired {
+				utils.WriteWarningLog(0, "Auth", "Истек срок действия токена")
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Истек срок действия токена"})
+			} else {
+				utils.WriteWarningLog(0, "Auth", "Недействительный токен: "+err.Error())
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Недействительный токен"})
+			}
 			c.Abort()
 			return
 		}
 
-		// Добавляем ID пользователя в контекст
-		c.Set("user_id", userID)
+		if !token.Valid {
+			utils.WriteWarningLog(0, "Auth", "Недействительный токен")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Недействительный токен"})
+			c.Abort()
+			return
+		}
+
+		// Записываем данные пользователя в контекст
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("role", claims.Role)
+		
+		// Логируем успешную аутентификацию
+		utils.WriteInfoLog(claims.UserID, "Auth", "Успешная аутентификация пользователя "+claims.Username)
+		
 		c.Next()
 	}
 }
 
 // RoleMiddleware проверяет роль пользователя
-func RoleMiddleware(roles ...models.Role) gin.HandlerFunc {
+func RoleMiddleware(role string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get("user_id")
+		userRole, exists := c.Get("role")
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			utils.WriteWarningLog(0, "Auth", "Роль не найдена в контексте")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Роль не найдена"})
 			c.Abort()
 			return
 		}
 
-		var user models.User
-		if err := db.DB.First(&user, userID).Error; err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		if userRole != role {
+			userID, _ := c.Get("user_id")
+			username, _ := c.Get("username")
+			utils.WriteWarningLog(userID.(uint), "Auth", 
+				fmt.Sprintf("Доступ запрещен для пользователя %s (роль %s). Требуется роль: %s", 
+					username, userRole, role))
+			
+			c.JSON(http.StatusForbidden, gin.H{"error": "Доступ запрещен"})
 			c.Abort()
 			return
 		}
 
-		// Проверяем, имеет ли пользователь нужную роль
-		hasRole := false
-		for _, role := range roles {
-			if user.Role == role {
-				hasRole = true
-				break
-			}
+		c.Next()
+	}
+}
+
+// AdminMiddleware проверяет, что пользователь имеет роль admin
+func AdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userRole, exists := c.Get("role")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Требуется авторизация"})
+			c.Abort()
+			return
 		}
 
-		if !hasRole {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+		if userRole != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Доступ только для администраторов"})
 			c.Abort()
 			return
 		}
@@ -84,7 +130,7 @@ func validateToken(tokenString string) (uint, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
-		return secret, nil
+		return []byte(JWTSecret), nil
 	})
 
 	if err != nil {

@@ -17,12 +17,11 @@ import (
 var DB *gorm.DB
 
 func InitDB() {
-	// Получаем параметры подключения из переменных окружения или используем значения по умолчанию
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbName := getEnv("DB_NAME", "smartcourse")
 	dbUser := getEnv("DB_USER", "myuser")
 	dbPass := getEnv("DB_PASSWORD", "mypassword")
-	dbPort := getEnv("DB_PORT", "5432") // Для Docker используем 5432, для локального доступа - 5444
+	dbPort := getEnv("DB_PORT", "5444")
 	sslmode := "disable"
 	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", dbUser, dbPass, dbHost, dbPort, dbName, sslmode)
 
@@ -41,7 +40,10 @@ func InitDB() {
 		log.Fatal(err)
 	}
 
-	// Применяем миграции и игнорируем ошибку, если миграции уже применены
+	//if err := m.Down(); err != nil && err.Error() != "no change" && err != migrate.ErrNoChange {
+	//	log.Println("Ошибка сброса миграций:", err)
+	//}
+
 	if err := m.Up(); err != nil && err.Error() != "no change" && err != migrate.ErrNoChange {
 		log.Fatal("Ошибка применения миграций:", err)
 	}
@@ -55,7 +57,7 @@ func InitDB() {
 	DB = gormDB
 }
 
-// getEnv получает значение из переменной окружения или возвращает значение по умолчанию
+// getEnv получает значение переменной окружения с возможностью задать значение по умолчанию
 func getEnv(key, defaultValue string) string {
 	value := os.Getenv(key)
 	if value == "" {
