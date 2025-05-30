@@ -1,4 +1,4 @@
-package service
+package services
 
 import (
 	"errors"
@@ -123,4 +123,9 @@ func (s *AssignmentService) DeleteAssignment(id uint, teacherID uint) error {
 // GetAssignmentsByCourse возвращает задания курса
 func (s *AssignmentService) GetAssignmentsByCourse(courseID uint) ([]models.Assignment, error) {
 	return s.repo.GetAssignmentsByCourseID(courseID)
+}
+
+// GetAssignmentByIDWithDeleted возвращает задание по ID, включая удаленные
+func (s *AssignmentService) GetAssignmentByIDWithDeleted(id uint) (*models.Assignment, error) {
+	return s.repo.GetByIDWithDeleted(id)
 } 

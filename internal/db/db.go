@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -16,11 +17,11 @@ import (
 var DB *gorm.DB
 
 func InitDB() {
-	dbHost := "localhost"
-	dbName := "smartcourse"
-	dbUser := "myuser"
-	dbPass := "mypassword"
-	dbPort := "5444"
+	dbHost := getEnv("DB_HOST", "localhost")
+	dbName := getEnv("DB_NAME", "smartcourse")
+	dbUser := getEnv("DB_USER", "myuser")
+	dbPass := getEnv("DB_PASSWORD", "mypassword")
+	dbPort := getEnv("DB_PORT", "5444")
 	sslmode := "disable"
 	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", dbUser, dbPass, dbHost, dbPort, dbName, sslmode)
 
@@ -38,8 +39,13 @@ func InitDB() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := m.Up(); err != nil && err.Error() != "no change" {
-		log.Fatal(err)
+
+	//if err := m.Down(); err != nil && err.Error() != "no change" && err != migrate.ErrNoChange {
+	//	log.Println("Ошибка сброса миграций:", err)
+	//}
+
+	if err := m.Up(); err != nil && err.Error() != "no change" && err != migrate.ErrNoChange {
+		log.Fatal("Ошибка применения миграций:", err)
 	}
 
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{
@@ -49,4 +55,13 @@ func InitDB() {
 		log.Fatal(err)
 	}
 	DB = gormDB
+}
+
+// getEnv получает значение переменной окружения с возможностью задать значение по умолчанию
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

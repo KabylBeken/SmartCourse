@@ -1,17 +1,5 @@
 package auth
 
-import (
-	"github.com/golang-jwt/jwt/v5"
-	"time"
-)
-
-var secret = []byte("your-secret-key")
-
-func GenerateJWT(userID uint) (string, error) {
-	claims := jwt.MapClaims{
-		"user_id": userID,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(secret)
-}
+// JWTSecret ключ для подписи JWT токенов
+// В реальном приложении это должно быть безопасно сохранено в конфигурации или переменных окружения
+const JWTSecret = "your-secret-key-please-change-in-production" 

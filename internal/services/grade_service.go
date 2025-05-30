@@ -1,4 +1,4 @@
-package service
+package services
 
 import (
 	"errors"
@@ -39,10 +39,15 @@ func (s *GradeService) GetGradeByID(id uint) (*models.Grade, error) {
 
 // CreateGrade создает новую оценку
 func (s *GradeService) CreateGrade(assignmentID, studentID uint, score float64, feedback string, teacherID uint) (*models.Grade, error) {
-	// Проверяем, что задание существует
+	// Проверяем, что задание существует (включая удаленные)
 	assignment, err := s.assignmentRepo.GetByID(assignmentID)
 	if err != nil {
 		return nil, errors.New("assignment not found")
+	}
+
+	// Проверяем, что задание не удалено
+	if !assignment.DeletedAt.Time.IsZero() {
+		return nil, errors.New("cannot create grade for deleted assignment")
 	}
 	
 	// Проверяем, что курс существует

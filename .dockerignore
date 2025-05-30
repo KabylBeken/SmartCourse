@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+.github
+
+# Docker
+.docker
+docker-compose.yml
+.dockerignore
+
+# Build
+.idea
+.vscode
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.out
+
+# Temp
+tmp/
+logs/
+*.log
+
+# Data
+postgres_data/ 
