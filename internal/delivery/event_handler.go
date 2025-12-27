@@ -108,4 +108,4 @@ func (h *EventHandler) GetUserEvents(c *gin.Context) {
 			"total":     total,
 		},
 	})
-} 
+}

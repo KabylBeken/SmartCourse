@@ -64,4 +64,4 @@ func (r *GradeRepositoryImpl) GetGradeByStudentAndAssignment(studentID, assignme
 	var grade models.Grade
 	err := r.db.Where("student_id = ? AND assignment_id = ?", studentID, assignmentID).First(&grade).Error
 	return &grade, err
-} 
+}

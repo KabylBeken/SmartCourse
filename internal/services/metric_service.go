@@ -79,4 +79,4 @@ func (s *MetricService) GetMetrics(metricName string, metricType models.MetricTy
 	}
 	
 	return metrics, total, nil
-} 
+}

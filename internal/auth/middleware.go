@@ -146,4 +146,4 @@ func validateToken(tokenString string) (uint, error) {
 	}
 
 	return 0, errors.New("invalid token")
-} 
+}

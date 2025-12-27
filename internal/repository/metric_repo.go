@@ -134,4 +134,4 @@ func (r *MetricRepository) CountMetrics(filter bson.M) (int64, error) {
 	defer cancel()
 	
 	return r.collection.CountDocuments(ctx, filter)
-} 
+}

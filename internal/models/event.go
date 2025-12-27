@@ -38,4 +38,4 @@ type Event struct {
 	IPAddress   string             `bson:"ip_address,omitempty"`
 	UserAgent   string             `bson:"user_agent,omitempty"`
 	Timestamp   time.Time          `bson:"timestamp"`
-} 
+}

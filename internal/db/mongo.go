@@ -38,4 +38,4 @@ func InitMongoDB() {
 	
 	MongoDB = client
 	MongoDatabase = client.Database(dbName)
-} 
+}

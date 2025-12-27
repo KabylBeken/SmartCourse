@@ -18,4 +18,4 @@ type Assignment struct {
 	// Связи
 	Course      *Course        `json:"course,omitempty"`
 	Grades      []*Grade       `json:"grades,omitempty"`
-} 
+}

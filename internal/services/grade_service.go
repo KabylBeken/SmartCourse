@@ -182,4 +182,4 @@ func (s *GradeService) GetGradesByStudent(studentID uint) ([]models.Grade, error
 // GetGradesByAssignment возвращает оценки по заданию
 func (s *GradeService) GetGradesByAssignment(assignmentID uint) ([]models.Grade, error) {
 	return s.repo.GetGradesByAssignmentID(assignmentID)
-} 
+}

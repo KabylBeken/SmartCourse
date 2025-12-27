@@ -128,4 +128,4 @@ func (s *AssignmentService) GetAssignmentsByCourse(courseID uint) ([]models.Assi
 // GetAssignmentByIDWithDeleted возвращает задание по ID, включая удаленные
 func (s *AssignmentService) GetAssignmentByIDWithDeleted(id uint) (*models.Assignment, error) {
 	return s.repo.GetByIDWithDeleted(id)
-} 
+}

@@ -18,4 +18,4 @@ type Grade struct {
 	// Связи
 	Student      *User          `json:"student,omitempty"`
 	Assignment   *Assignment    `json:"assignment,omitempty"`
-} 
+}

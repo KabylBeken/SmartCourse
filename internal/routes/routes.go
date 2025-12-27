@@ -14,9 +14,14 @@ import (
 )
 
 func SetupRoutes(r *gin.Engine) {
-	// Middleware для CORS - разрешаем только запросы с http://localhost:5173
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+
+	// Middleware для CORS - разрешаем запросы с http://localhost:3000 (Next.js)
 	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true") // Для передачи cookie
@@ -35,7 +40,6 @@ func SetupRoutes(r *gin.Engine) {
 	// Инициализация репозиториев PostgreSQL
 	userRepo := repository.NewUserRepository(db.DB)
 	courseRepo := repository.NewCourseRepository(db.DB)
-	studentRepo := repository.NewStudentRepository(db.DB)
 	assignmentRepo := repository.NewAssignmentRepository(db.DB)
 	gradeRepo := repository.NewGradeRepository(db.DB)
 
@@ -72,7 +76,7 @@ func SetupRoutes(r *gin.Engine) {
 	// Инициализация сервисов
 	userService := services.NewUserService(userRepo)
 	courseService := services.NewCourseService(courseRepo, userRepo)
-	studentService := services.NewStudentService(studentRepo)
+	studentService := services.NewStudentService(userRepo) // Используем userRepo для студентов
 	// Инициализация сервисов
 	assignmentService := services.NewAssignmentService(assignmentRepo, courseRepo, userRepo)
 	gradeService := services.NewGradeService(gradeRepo, assignmentRepo, courseRepo, userRepo)
@@ -184,4 +188,4 @@ func SetupRoutes(r *gin.Engine) {
 			studentGroup.DELETE("/:id", studentHandler.DeleteStudent)
 		}
 	}
-} 
+}

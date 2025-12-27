@@ -74,4 +74,4 @@ func RequestCounterMiddleware() gin.HandlerFunc {
 			"Выполнен запрос "+method+" "+path+", статус: "+
 			strconv.Itoa(statusCode))
 	}
-} 
+}

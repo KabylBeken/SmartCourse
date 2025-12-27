@@ -93,4 +93,4 @@ func (s *UserService) DeleteUser(id uint) error {
 // GetUsersByRole возвращает пользователей с заданной ролью
 func (s *UserService) GetUsersByRole(role models.Role) ([]models.User, error) {
 	return s.repo.GetUsersByRole(role)
-} 
+}

@@ -18,4 +18,4 @@ type Course struct {
 	Teacher     *User          `gorm:"foreignKey:TeacherID" json:"teacher,omitempty"`
 	Students    []*User        `gorm:"many2many:course_students;" json:"students,omitempty"`
 	Assignments []*Assignment  `json:"assignments,omitempty"`
-} 
+}

@@ -176,4 +176,4 @@ func IncrementCounter(name string, labels map[string]string) {
 // SetGauge устанавливает значение gauge метрики
 func SetGauge(name string, value float64, labels map[string]string) {
 	WriteMetric(name, value, models.MetricTypeGauge, labels)
-} 
+}

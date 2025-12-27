@@ -57,4 +57,4 @@ func (r *UserRepositoryImpl) GetUserByUsername(username string) (*models.User, e
 	var user models.User
 	err := r.db.Where("username = ?", username).First(&user).Error
 	return &user, err
-} 
+}

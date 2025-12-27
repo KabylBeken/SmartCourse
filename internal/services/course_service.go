@@ -130,4 +130,4 @@ func (s *CourseService) AssignTeacherToCourse(courseID, teacherID uint) error {
 	}
 	
 	return s.repo.AssignTeacherToCourse(courseID, teacherID)
-} 
+}

@@ -93,4 +93,4 @@ func (r *EventRepository) CountEvents(filter bson.M) (int64, error) {
 func (r *EventRepository) GetUserEvents(userID uint, limit int64, skip int64) ([]models.Event, error) {
 	filter := bson.M{"user_id": userID}
 	return r.FindEvents(filter, limit, skip)
-} 
+}

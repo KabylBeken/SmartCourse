@@ -78,4 +78,4 @@ func (s *LoggerService) GetLogs(logType models.LogType, component string, page, 
 	}
 	
 	return logs, total, nil
-} 
+}

@@ -24,4 +24,4 @@ type Metric struct {
 	Labels      map[string]string  `bson:"labels,omitempty"`
 	Description string             `bson:"description,omitempty"`
 	Timestamp   time.Time          `bson:"timestamp"`
-} 
+}

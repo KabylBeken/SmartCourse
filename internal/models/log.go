@@ -24,4 +24,4 @@ type Log struct {
 	Component string             `bson:"component"`
 	Metadata  map[string]any     `bson:"metadata,omitempty"`
 	CreatedAt time.Time          `bson:"created_at"`
-} 
+}

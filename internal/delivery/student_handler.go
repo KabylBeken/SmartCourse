@@ -3,7 +3,6 @@ package delivery
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"rest-project/internal/models"
 	"rest-project/internal/services"
 	"rest-project/internal/utils"
 	"strconv"
@@ -50,13 +49,13 @@ func (h *StudentHandler) GetStudent(c *gin.Context) {
 // Создание нового студента
 func (h *StudentHandler) CreateStudent(c *gin.Context) {
 	var req struct {
-		FullName  string `json:"full_name" binding:"required"`
-		Birthdate string `json:"birthdate"`
-		Age       int    `json:"age"`
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		FullName string `json:"fullName"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректные данные"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректные данные. Требуется username и password"})
 		return
 	}
 
@@ -66,14 +65,20 @@ func (h *StudentHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	student, err := h.service.Create(req.FullName, req.Birthdate, req.Age)
+	// Используем fullName как username если не указан
+	username := req.Username
+	if req.FullName != "" {
+		username = req.FullName
+	}
+
+	student, err := h.service.CreateStudent(username, req.Password)
 	if err != nil {
 		utils.WriteErrorLog(userID.(uint), "Students", "Ошибка создания студента: "+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	utils.WriteInfoLog(userID.(uint), "Students", "Создан новый студент: "+student.FullName)
+	utils.WriteInfoLog(userID.(uint), "Students", "Создан новый студент: "+student.Username)
 	c.JSON(http.StatusCreated, student)
 }
 
@@ -85,7 +90,10 @@ func (h *StudentHandler) UpdateStudent(c *gin.Context) {
 		return
 	}
 
-	var req models.StudentEdit
+	var req struct {
+		Username string `json:"username"`
+		FullName string `json:"fullName"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректные данные"})
 		return
@@ -97,14 +105,20 @@ func (h *StudentHandler) UpdateStudent(c *gin.Context) {
 		return
 	}
 
-	student, err := h.service.Update(id, &req)
+	// Используем fullName или username
+	username := req.Username
+	if req.FullName != "" {
+		username = req.FullName
+	}
+
+	student, err := h.service.UpdateStudent(id, username)
 	if err != nil {
 		utils.WriteErrorLog(userID.(uint), "Students", "Ошибка обновления студента: "+err.Error())
 		c.JSON(http.StatusNotFound, gin.H{"error": "Ошибка обновления студента"})
 		return
 	}
 
-	utils.WriteInfoLog(userID.(uint), "Students", "Обновлен студент: "+student.FullName)
+	utils.WriteInfoLog(userID.(uint), "Students", "Обновлен студент: "+student.Username)
 	c.JSON(http.StatusOK, student)
 }
 
@@ -125,7 +139,7 @@ func (h *StudentHandler) DeleteStudent(c *gin.Context) {
 	// Получаем студента перед удалением для логирования
 	student, err := h.service.GetStudentByID(id)
 	if err == nil {
-		utils.WriteInfoLog(userID.(uint), "Students", "Удален студент: "+student.FullName)
+		utils.WriteInfoLog(userID.(uint), "Students", "Удален студент: "+student.Username)
 	}
 
 	err = h.service.DeleteStudent(id)

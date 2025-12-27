@@ -56,4 +56,4 @@ func (h *LogHandler) GetLogs(c *gin.Context) {
 			"total":     total,
 		},
 	})
-} 
+}

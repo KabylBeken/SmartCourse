@@ -56,4 +56,4 @@ func (h *MetricHandler) GetMetrics(c *gin.Context) {
 			"total":     total,
 		},
 	})
-} 
+}

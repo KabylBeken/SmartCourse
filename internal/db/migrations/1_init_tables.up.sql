@@ -6,6 +6,14 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(10) NOT NULL DEFAULT 'student'
 );
 
+-- Создание таблицы студентов (для управления списком студентов)
+CREATE TABLE IF NOT EXISTS students (
+    id SERIAL PRIMARY KEY,
+    full_name VARCHAR(255) NOT NULL,
+    birthdate VARCHAR(50),
+    age INTEGER
+);
+
 -- Создание таблицы курсов
 CREATE TABLE IF NOT EXISTS courses (
     id SERIAL PRIMARY KEY,
@@ -48,4 +56,3 @@ CREATE TABLE IF NOT EXISTS grades (
     deleted_at TIMESTAMP,
     UNIQUE(student_id, assignment_id)
 );
-

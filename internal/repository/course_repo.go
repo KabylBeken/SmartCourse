@@ -77,4 +77,4 @@ func (r *CourseRepositoryImpl) RemoveStudentFromCourse(courseID, studentID uint)
 func (r *CourseRepositoryImpl) AssignTeacherToCourse(courseID, teacherID uint) error {
 	return r.db.Model(&models.Course{}).Where("id = ?", courseID).
 		Update("teacher_id", teacherID).Error
-} 
+}

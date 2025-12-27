@@ -130,4 +130,4 @@ func (s *EventService) GetEvents(eventType models.EventType, resourceType string
 	}
 	
 	return events, total, nil
-} 
+}
