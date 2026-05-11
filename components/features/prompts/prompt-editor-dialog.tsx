@@ -45,6 +45,9 @@ export function PromptEditorDialog({ open, onOpenChange, prompt, onSave }: Promp
   const [isPublic, setIsPublic] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [sampleValues, setSampleValues] = useState<Record<string, string>>({})
+  const [tags, setTags] = useState<string[]>([])
+  const [collection, setCollection] = useState<string>("")
+  const [isImproving, setIsImproving] = useState(false)
 
   // Extract variables from prompt text
   const variables = useMemo(() => {
@@ -61,12 +64,16 @@ export function PromptEditorDialog({ open, onOpenChange, prompt, onSave }: Promp
       setPromptText(prompt.prompt_text)
       setCategory(prompt.category)
       setIsPublic(prompt.is_public)
+      setTags(prompt.tags || [])
+      setCollection(prompt.collection || "")
     } else {
       setTitle("")
       setDescription("")
       setPromptText("")
       setCategory("essay")
       setIsPublic(false)
+      setTags([])
+      setCollection("")
     }
     setSampleValues({})
   }, [prompt, open])
@@ -90,6 +97,8 @@ export function PromptEditorDialog({ open, onOpenChange, prompt, onSave }: Promp
         prompt_text: promptText,
         category,
         is_public: isPublic,
+        tags: tags.length ? tags : undefined,
+        collection: collection || undefined,
       })
       onOpenChange(false)
     } finally {
@@ -138,6 +147,36 @@ export function PromptEditorDialog({ open, onOpenChange, prompt, onSave }: Promp
                 <p className="text-xs text-muted-foreground">{title.length}/100 characters</p>
               </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="tags">Tags</Label>
+                <Input
+                  id="tags"
+                  value={tags.join(", ")}
+                  onChange={(e) =>
+                    setTags(
+                      e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    )
+                  }
+                  placeholder="e.g., grade7, critical-thinking"
+                />
+                <p className="text-xs text-muted-foreground">Через запятую. Будет сохранено как список.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="collection">Collection</Label>
+                <Input
+                  id="collection"
+                  value={collection}
+                  onChange={(e) => setCollection(e.target.value)}
+                  placeholder="e.g., Semester 1"
+                  maxLength={100}
+                />
+              </div>
+            </div>
+
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
                 <Select value={category} onValueChange={setCategory}>
@@ -171,6 +210,32 @@ export function PromptEditorDialog({ open, onOpenChange, prompt, onSave }: Promp
                 Prompt Text *
                 <span className="ml-2 text-xs text-muted-foreground">Use {"{{variable}}"} for dynamic content</span>
               </Label>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isImproving || promptText.length < 20}
+                  onClick={async () => {
+                    setIsImproving(true)
+                    try {
+                      const res = await fetch("/api/ai/prompt-improve", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ title, description, prompt_text: promptText }),
+                      })
+                      const data = (await res.json().catch(() => ({}))) as { content?: string }
+                      if (res.ok && typeof data.content === "string" && data.content.trim()) {
+                        setPromptText(data.content.trim())
+                      }
+                    } finally {
+                      setIsImproving(false)
+                    }
+                  }}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" /> {isImproving ? "Improving..." : "Improve with AI"}
+                </Button>
+              </div>
               <Textarea
                 id="promptText"
                 value={promptText}

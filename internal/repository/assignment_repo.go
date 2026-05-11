@@ -32,8 +32,7 @@ func (r *AssignmentRepositoryImpl) GetAll() ([]models.Assignment, error) {
 
 func (r *AssignmentRepositoryImpl) GetByID(id uint) (*models.Assignment, error) {
 	var assignment models.Assignment
-	// Используем Unscoped для поиска, включая мягко удаленные записи
-	err := r.db.Unscoped().First(&assignment, id).Error
+	err := r.db.First(&assignment, id).Error
 	return &assignment, err
 }
 

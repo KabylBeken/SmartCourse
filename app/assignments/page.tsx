@@ -7,16 +7,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Plus, Search, MoreHorizontal, Calendar, Target, FileText, Edit, Trash2, Eye, Loader2 } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Calendar, Target, FileText, BookOpen, ListChecks, Edit, Trash2, Eye, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { getAllCourses, type Course } from "@/lib/api/courses"
 import { getTeacherCourseAssignments, deleteAssignment, type Assignment } from "@/lib/api/assignments"
+import CreateAssignmentModal from "@/components/assignments/CreateAssignmentModal"
 
 export default function AssignmentsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
 
   // Загрузка всех заданий со всех курсов преподавателя
   useEffect(() => {
@@ -99,13 +102,31 @@ export default function AssignmentsPage() {
             <h1 className="text-2xl font-bold">Задания</h1>
             <p className="text-muted-foreground">Управление и отслеживание всех заданий</p>
           </div>
-          <Button asChild>
-            <Link href="/assignments/new">
+          <div className="flex gap-2 items-center">
+            {courses.length > 0 && (
+              <select
+                className="text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                value={selectedCourseId ?? ""}
+                onChange={e => setSelectedCourseId(Number(e.target.value))}
+              >
+                <option value="" disabled>Курс таңдаңыз</option>
+                {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+              </select>
+            )}
+            <Button onClick={() => { if (!selectedCourseId) { alert("Алдымен курс таңдаңыз"); return; } setShowModal(true) }}>
               <Plus className="mr-2 h-4 w-4" />
               Создать задание
-            </Link>
-          </Button>
+            </Button>
+          </div>
         </div>
+
+        {showModal && selectedCourseId && (
+          <CreateAssignmentModal
+            courseId={selectedCourseId}
+            onClose={() => setShowModal(false)}
+            onSuccess={() => { setShowModal(false); window.location.reload() }}
+          />
+        )}
 
         {/* Search */}
         <div className="relative max-w-md">
@@ -131,8 +152,15 @@ export default function AssignmentsPage() {
             return (
               <Card key={assignment.id} className="flex flex-col p-6">
                 <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <FileText className="h-5 w-5 text-primary" />
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      {assignment.type === "test"
+                        ? <ListChecks className="h-5 w-5 text-indigo-600" />
+                        : <BookOpen className="h-5 w-5 text-primary" />}
+                    </div>
+                    <Badge variant="outline" className={assignment.type === "test" ? "text-indigo-600 border-indigo-300" : "text-emerald-600 border-emerald-300"}>
+                      {assignment.type === "test" ? "Тест" : "Эссе"}
+                    </Badge>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

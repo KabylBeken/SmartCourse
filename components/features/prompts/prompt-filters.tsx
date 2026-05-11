@@ -10,8 +10,8 @@ interface PromptFiltersProps {
   onSearchChange: (query: string) => void
   category: string
   onCategoryChange: (category: string) => void
-  visibility: "all" | "mine" | "public"
-  onVisibilityChange: (visibility: "all" | "mine" | "public") => void
+  visibility: "all" | "mine" | "public" | "favorites" | "templates"
+  onVisibilityChange: (visibility: "all" | "mine" | "public" | "favorites" | "templates") => void
 }
 
 const categories = [
@@ -59,11 +59,13 @@ export function PromptFilters({
           </SelectContent>
         </Select>
 
-        <Tabs value={visibility} onValueChange={(v) => onVisibilityChange(v as "all" | "mine" | "public")}>
+        <Tabs value={visibility} onValueChange={(v) => onVisibilityChange(v as any)}>
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="mine">My Prompts</TabsTrigger>
             <TabsTrigger value="public">Public</TabsTrigger>
+            <TabsTrigger value="favorites">Favorites</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>

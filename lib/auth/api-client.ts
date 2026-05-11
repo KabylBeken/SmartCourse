@@ -5,6 +5,10 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8083"
 
+export function getApiBaseUrl(): string {
+  return API_BASE_URL
+}
+
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean
 }
@@ -26,16 +30,17 @@ async function fetchWithAuth<T>(
   options: RequestOptions = {}
 ): Promise<T> {
   const { skipAuth = false, ...fetchOptions } = options
+  const isFormData = typeof FormData !== "undefined" && fetchOptions.body instanceof FormData
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...fetchOptions.headers,
+  const headers: Record<string, string> = {
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(fetchOptions.headers as Record<string, string> | undefined),
   }
 
   if (!skipAuth) {
     const token = getToken()
     if (token) {
-      ;(headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
+      headers["Authorization"] = `Bearer ${token}`
     }
   }
 
@@ -89,6 +94,13 @@ export const apiClient = {
 
   delete: <T>(endpoint: string, options?: RequestOptions) =>
     fetchWithAuth<T>(endpoint, { ...options, method: "DELETE" }),
+
+  postForm: <T>(endpoint: string, formData: FormData, options?: RequestOptions) =>
+    fetchWithAuth<T>(endpoint, {
+      ...options,
+      method: "POST",
+      body: formData,
+    }),
 }
 
 export default apiClient

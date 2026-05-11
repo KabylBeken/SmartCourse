@@ -41,7 +41,10 @@ func (r *GradeRepositoryImpl) Create(grade *models.Grade) error {
 }
 
 func (r *GradeRepositoryImpl) Update(id uint, grade *models.Grade) error {
-	return r.db.Model(&models.Grade{}).Where("id = ?", id).Updates(grade).Error
+	return r.db.Model(&models.Grade{}).
+		Where("id = ?", id).
+		Select("score", "feedback").
+		Updates(grade).Error
 }
 
 func (r *GradeRepositoryImpl) Delete(id uint) error {

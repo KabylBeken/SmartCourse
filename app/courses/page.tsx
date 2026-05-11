@@ -1,8 +1,8 @@
 "use client"
 
-import { Suspense, useState, useEffect } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { DashboardLayout } from "@/components/layouts/dashboard-layout"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -11,103 +11,140 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, Users, BookOpen, MoreHorizontal, Settings, Loader2, UserPlus, Trash2, GraduationCap } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import {
+  BookOpen,
+  CalendarDays,
+  Eye,
+  GraduationCap,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Trash2,
+  UserMinus,
+  UserPlus,
+  Users,
+} from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
-import { getAllCourses, createCourse, addStudentToCourse, removeStudentFromCourse, deleteCourse, type Course } from "@/lib/api/courses"
+import {
+  addStudentToCourse,
+  createCourse,
+  deleteCourse,
+  getAllCourses,
+  removeStudentFromCourse,
+  type Course,
+} from "@/lib/api/courses"
 import { getAllStudents, type Student } from "@/lib/api/students"
 import { useAuth } from "@/lib/auth/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 
-interface CourseWithStudents extends Course {
-  students?: Array<{ id: number; username: string }>
+function getStudentName(student: Student) {
+  return student.fullName || student.username || `Student #${student.id}`
 }
 
 function CoursesContent() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
-  const [courses, setCourses] = useState<CourseWithStudents[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [students, setStudents] = useState<Student[]>([])
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [selectedStudentId, setSelectedStudentId] = useState("")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isStudentsOpen, setIsStudentsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
+  const [isSavingStudent, setIsSavingStudent] = useState(false)
   const [error, setError] = useState("")
-  const [newCourse, setNewCourse] = useState({
-    title: "",
-    description: "",
-  })
-  
-  // Диалог управления студентами
-  const [selectedCourse, setSelectedCourse] = useState<CourseWithStudents | null>(null)
-  const [isStudentsDialogOpen, setIsStudentsDialogOpen] = useState(false)
-  const [selectedStudentId, setSelectedStudentId] = useState<string>("")
-  const [isAddingStudent, setIsAddingStudent] = useState(false)
+  const [newCourse, setNewCourse] = useState({ title: "", description: "" })
 
-  // Загрузка курсов и студентов
-  useEffect(() => {
-    async function loadData() {
-      try {
-        // Загружаем курсы
-        const coursesData = await getAllCourses()
-        setCourses(coursesData)
-      } catch (err) {
-        console.error("Ошибка загрузки курсов:", err)
-      }
-      
-      try {
-        // Загружаем студентов (может не работать, если таблица не создана)
-        const studentsData = await getAllStudents()
-        setStudents(studentsData)
-      } catch (err) {
-        console.error("Ошибка загрузки студентов:", err)
-        // Не блокируем работу со курсами если студенты не загрузились
-      }
-      
+  const loadData = async () => {
+    setIsLoading(true)
+    try {
+      const [coursesData, studentsData] = await Promise.all([
+        getAllCourses(),
+        getAllStudents().catch(() => [] as Student[]),
+      ])
+      setCourses(coursesData)
+      setStudents(studentsData)
+    } catch (err) {
+      toast({
+        title: "Ошибка",
+        description: err instanceof Error ? err.message : "Не удалось загрузить курсы",
+        variant: "destructive",
+      })
+    } finally {
       setIsLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadData()
   }, [])
 
-  // Создание курса
+  const totals = useMemo(() => {
+    const studentIds = new Set<number>()
+    courses.forEach((course) => course.students?.forEach((student) => studentIds.add(student.id)))
+
+    return {
+      courses: courses.length,
+      students: studentIds.size,
+      availableStudents: students.length,
+      assignments: courses.reduce((sum, course) => sum + (course.assignments_count || course.assignments?.length || 0), 0),
+    }
+  }, [courses, students])
+
+  const filteredCourses = courses.filter((course) => {
+    const query = searchQuery.toLowerCase()
+    return course.title.toLowerCase().includes(query) || (course.description || "").toLowerCase().includes(query)
+  })
+
+  const availableStudents = useMemo(() => {
+    if (!selectedCourse) return students
+    const enrolledIds = new Set((selectedCourse.students || []).map((student) => student.id))
+    return students.filter((student) => !enrolledIds.has(student.id))
+  }, [selectedCourse, students])
+
+  const syncCourse = (updated: Course) => {
+    setCourses((current) => current.map((course) => (course.id === updated.id ? updated : course)))
+    setSelectedCourse(updated)
+  }
+
+  const openStudentsDialog = (course: Course) => {
+    setSelectedCourse(course)
+    setSelectedStudentId("")
+    setIsStudentsOpen(true)
+  }
+
   const handleCreateCourse = async () => {
     if (!newCourse.title.trim()) {
       setError("Введите название курса")
       return
     }
 
-    if (!user?.id) {
-      setError("Пользователь не авторизован")
-      return
-    }
-
     setError("")
     setIsCreating(true)
-
     try {
       const created = await createCourse({
-        title: newCourse.title,
-        description: newCourse.description,
-        teacher_id: user.id,
+        title: newCourse.title.trim(),
+        description: newCourse.description.trim(),
+        teacher_id: user?.id,
       })
-      setCourses([...courses, created])
+      setCourses((current) => [created, ...current])
       setNewCourse({ title: "", description: "" })
       setIsCreateOpen(false)
-      toast({
-        title: "Успешно",
-        description: "Курс создан",
-      })
+      toast({ title: "Курс создан", description: "Новый курс добавлен в список." })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка создания курса")
     } finally {
@@ -115,36 +152,15 @@ function CoursesContent() {
     }
   }
 
-  // Добавление студента на курс
   const handleAddStudent = async () => {
     if (!selectedCourse || !selectedStudentId) return
-    
+
+    setIsSavingStudent(true)
     try {
-      setIsAddingStudent(true)
-      await addStudentToCourse(selectedCourse.id, parseInt(selectedStudentId))
-      
-      // Обновляем список студентов курса локально
-      const student = students.find(s => s.id === parseInt(selectedStudentId))
-      if (student) {
-        const updatedCourses = courses.map(c => {
-          if (c.id === selectedCourse.id) {
-            return {
-              ...c,
-              students: [...(c.students || []), { id: student.id, username: student.fullName }],
-              student_count: (c.student_count || 0) + 1
-            }
-          }
-          return c
-        })
-        setCourses(updatedCourses)
-        setSelectedCourse(updatedCourses.find(c => c.id === selectedCourse.id) || null)
-      }
-      
+      const updated = await addStudentToCourse(selectedCourse.id, Number(selectedStudentId))
+      syncCourse(updated)
       setSelectedStudentId("")
-      toast({
-        title: "Успешно",
-        description: "Студент добавлен на курс",
-      })
+      toast({ title: "Студент добавлен", description: `${updated.title}: список обновлен.` })
     } catch (err) {
       toast({
         title: "Ошибка",
@@ -152,94 +168,62 @@ function CoursesContent() {
         variant: "destructive",
       })
     } finally {
-      setIsAddingStudent(false)
+      setIsSavingStudent(false)
     }
   }
 
-  // Удаление студента с курса
   const handleRemoveStudent = async (studentId: number) => {
     if (!selectedCourse) return
     if (!confirm("Удалить студента с курса?")) return
-    
+
+    setIsSavingStudent(true)
     try {
-      await removeStudentFromCourse(selectedCourse.id, studentId)
-      
-      // Обновляем локально
-      const updatedCourses = courses.map(c => {
-        if (c.id === selectedCourse.id) {
-          return {
-            ...c,
-            students: (c.students || []).filter(s => s.id !== studentId),
-            student_count: Math.max((c.student_count || 1) - 1, 0)
-          }
-        }
-        return c
-      })
-      setCourses(updatedCourses)
-      setSelectedCourse(updatedCourses.find(c => c.id === selectedCourse.id) || null)
-      
-      toast({
-        title: "Успешно",
-        description: "Студент удалён с курса",
-      })
+      const updated = await removeStudentFromCourse(selectedCourse.id, studentId)
+      syncCourse(updated)
+      toast({ title: "Студент удален", description: `${updated.title}: список обновлен.` })
     } catch (err) {
       toast({
         title: "Ошибка",
-        description: "Не удалось удалить студента",
+        description: err instanceof Error ? err.message : "Не удалось удалить студента",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingStudent(false)
+    }
+  }
+
+  const handleDeleteCourse = async (course: Course) => {
+    const studentsCount = course.student_count || course.students?.length || 0
+    const assignmentsCount = course.assignments_count || course.assignments?.length || 0
+    const message = `Удалить курс "${course.title}"? Студентов: ${studentsCount}, заданий: ${assignmentsCount}.`
+    if (!confirm(message)) return
+
+    try {
+      await deleteCourse(course.id)
+      setCourses((current) => current.filter((item) => item.id !== course.id))
+      if (selectedCourse?.id === course.id) {
+        setSelectedCourse(null)
+        setIsStudentsOpen(false)
+      }
+      toast({ title: "Курс удален", description: course.title })
+    } catch (err) {
+      toast({
+        title: "Ошибка",
+        description: err instanceof Error ? err.message : "Не удалось удалить курс",
         variant: "destructive",
       })
     }
   }
-
-  // Удаление курса
-  const handleDeleteCourse = async (courseId: number) => {
-    if (!confirm("Вы уверены, что хотите удалить этот курс?")) return
-    
-    try {
-      await deleteCourse(courseId)
-      setCourses(courses.filter(c => c.id !== courseId))
-      toast({
-        title: "Успешно",
-        description: "Курс удалён",
-      })
-    } catch (err) {
-      toast({
-        title: "Ошибка",
-        description: "Не удалось удалить курс",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Открыть диалог управления студентами
-  const openStudentsDialog = (course: CourseWithStudents) => {
-    setSelectedCourse(course)
-    setIsStudentsDialogOpen(true)
-    setSelectedStudentId("")
-  }
-
-  // Получить студентов, которых ещё нет на курсе
-  const getAvailableStudents = () => {
-    if (!selectedCourse) return students
-    const courseStudentIds = (selectedCourse.students || []).map(s => s.id)
-    return students.filter(s => !courseStudentIds.includes(s.id))
-  }
-
-  const filteredCourses = courses.filter(
-    (c) =>
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
 
   return (
     <DashboardLayout userRole="teacher">
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">Курсы</h1>
             <p className="text-muted-foreground">Управление курсами и списками студентов</p>
           </div>
+
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -249,32 +233,32 @@ function CoursesContent() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Создать новый курс</DialogTitle>
-                <DialogDescription>Добавьте новый курс в вашу программу</DialogDescription>
+                <DialogTitle>Создать курс</DialogTitle>
+                <DialogDescription>Добавьте название и короткое описание для студентов.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-2">
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="course-title">Название курса</Label>
+                  <Label htmlFor="course-title">Название</Label>
                   <Input
                     id="course-title"
-                    placeholder="например, Введение в биологию"
+                    placeholder="Например, Full Stack Developer"
                     value={newCourse.title}
-                    onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })}
+                    onChange={(event) => setNewCourse({ ...newCourse, title: event.target.value })}
                     disabled={isCreating}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="course-desc">Описание</Label>
+                  <Label htmlFor="course-description">Описание</Label>
                   <Textarea
-                    id="course-desc"
-                    placeholder="Краткое описание курса..."
+                    id="course-description"
+                    placeholder="Кратко опишите цель курса"
                     value={newCourse.description}
-                    onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
+                    onChange={(event) => setNewCourse({ ...newCourse, description: event.target.value })}
                     disabled={isCreating}
                   />
                 </div>
@@ -284,125 +268,153 @@ function CoursesContent() {
                   Отмена
                 </Button>
                 <Button onClick={handleCreateCourse} disabled={isCreating}>
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Создание...
-                    </>
-                  ) : (
-                    "Создать курс"
-                  )}
+                  {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Создать
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
 
-        {/* Статистика */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-4">
           <Card className="p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10">
                 <BookOpen className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{courses.length}</div>
-                <div className="text-sm text-muted-foreground">Всего курсов</div>
+                <div className="text-2xl font-bold">{totals.courses}</div>
+                <div className="text-sm text-muted-foreground">Курсов</div>
               </div>
             </div>
           </Card>
           <Card className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
-                <Users className="h-5 w-5 text-green-500" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10">
+                <Users className="h-5 w-5 text-emerald-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">
-                  {courses.reduce((sum, c) => sum + (c.student_count || 0), 0)}
-                </div>
-                <div className="text-sm text-muted-foreground">Всего студентов</div>
+                <div className="text-2xl font-bold">{totals.students}</div>
+                <div className="text-sm text-muted-foreground">На курсах</div>
               </div>
             </div>
           </Card>
           <Card className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/10">
-                <GraduationCap className="h-5 w-5 text-purple-500" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-500/10">
+                <GraduationCap className="h-5 w-5 text-violet-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{students.length}</div>
-                <div className="text-sm text-muted-foreground">Доступно студентов</div>
+                <div className="text-2xl font-bold">{totals.availableStudents}</div>
+                <div className="text-sm text-muted-foreground">Доступно</div>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10">
+                <CalendarDays className="h-5 w-5 text-amber-500" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{totals.assignments}</div>
+                <div className="text-sm text-muted-foreground">Заданий</div>
               </div>
             </div>
           </Card>
         </div>
 
-        {/* Search */}
-        <div className="relative max-w-md">
+        <div className="relative max-w-xl">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Поиск курсов..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(event) => setSearchQuery(event.target.value)}
             className="pl-9"
           />
         </div>
 
-        {/* Loading State */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <>
-            {/* Courses Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredCourses.map((course) => (
-                <Card key={course.id} className="flex flex-col">
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                      <BookOpen className="h-6 w-6 text-primary" />
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openStudentsDialog(course)}>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Управление студентами
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/courses/${course.id}`}>Подробнее</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteCourse(course.id)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Удалить курс
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </CardHeader>
-                  <CardContent className="flex flex-1 flex-col">
-                    <CardTitle className="mb-2">{course.title}</CardTitle>
-                    <p className="mb-4 flex-1 text-sm text-muted-foreground line-clamp-2">{course.description}</p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Users className="h-4 w-4" />
-                        {course.student_count || 0} студентов
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredCourses.map((course) => {
+                const studentCount = course.student_count || course.students?.length || 0
+                const assignmentCount = course.assignments_count || course.assignments?.length || 0
+                const fill = Math.min(100, studentCount * 12)
+
+                return (
+                  <Card key={course.id} className="flex min-h-[230px] flex-col transition-colors hover:border-primary/40">
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                        <BookOpen className="h-6 w-6 text-primary" />
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => openStudentsDialog(course)}>
-                        <UserPlus className="mr-1 h-3 w-3" />
-                        Добавить
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openStudentsDialog(course)}>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Управление студентами
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/courses/${course.id}`}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Подробнее
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteCourse(course)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Удалить курс
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </CardHeader>
+                    <CardContent className="flex flex-1 flex-col gap-4">
+                      <div>
+                        <CardTitle className="mb-1 line-clamp-1">{course.title}</CardTitle>
+                        <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">
+                          {course.description || "Описание не указано"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-md border px-3 py-2">
+                          <div className="text-muted-foreground">Студенты</div>
+                          <div className="font-semibold">{studentCount}</div>
+                        </div>
+                        <div className="rounded-md border px-3 py-2">
+                          <div className="text-muted-foreground">Задания</div>
+                          <div className="font-semibold">{assignmentCount}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-auto space-y-2">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Заполнение группы</span>
+                          <span>{studentCount} чел.</span>
+                        </div>
+                        <Progress value={fill} className="h-2" />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1 bg-transparent" onClick={() => openStudentsDialog(course)}>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Студенты
+                        </Button>
+                        <Button size="sm" className="flex-1" asChild>
+                          <Link href={`/courses/${course.id}`}>Подробнее</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
 
             {filteredCourses.length === 0 && (
@@ -410,7 +422,7 @@ function CoursesContent() {
                 <BookOpen className="mb-4 h-12 w-12 text-muted-foreground" />
                 <h3 className="mb-2 text-lg font-semibold">Курсы не найдены</h3>
                 <p className="mb-6 text-muted-foreground">
-                  {searchQuery ? "Попробуйте другой поисковый запрос" : "Создайте свой первый курс"}
+                  {searchQuery ? "Попробуйте другой поисковый запрос" : "Создайте первый курс"}
                 </p>
                 <Button onClick={() => setIsCreateOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -421,103 +433,83 @@ function CoursesContent() {
           </>
         )}
 
-        {/* Диалог управления студентами */}
-        <Dialog open={isStudentsDialogOpen} onOpenChange={setIsStudentsDialogOpen}>
-          <DialogContent className="max-w-2xl">
+        <Dialog open={isStudentsOpen} onOpenChange={setIsStudentsOpen}>
+          <DialogContent className="max-w-3xl">
             <DialogHeader>
               <DialogTitle>Управление студентами</DialogTitle>
-              <DialogDescription>
-                Курс: {selectedCourse?.title}
-              </DialogDescription>
+              <DialogDescription>{selectedCourse?.title}</DialogDescription>
             </DialogHeader>
-            
-            <div className="space-y-4">
-              {/* Добавление студента */}
-              <Card className="p-4">
-                <div className="flex gap-2">
+
+            <div className="space-y-5">
+              <div className="rounded-lg border p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">Добавить студента</div>
+                    <div className="text-sm text-muted-foreground">В списке показаны только студенты, которых еще нет на курсе.</div>
+                  </div>
+                  <Badge variant="outline">{availableStudents.length} доступно</Badge>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
                     <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Выберите студента для добавления" />
+                      <SelectValue placeholder="Выберите студента" />
                     </SelectTrigger>
                     <SelectContent>
-                      {getAvailableStudents().map((student) => (
+                      {availableStudents.map((student) => (
                         <SelectItem key={student.id} value={student.id.toString()}>
-                          {student.fullName}
+                          {getStudentName(student)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button 
-                    onClick={handleAddStudent} 
-                    disabled={!selectedStudentId || isAddingStudent}
-                  >
-                    {isAddingStudent ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Добавить
-                      </>
-                    )}
+                  <Button onClick={handleAddStudent} disabled={!selectedStudentId || isSavingStudent}>
+                    {isSavingStudent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                    Добавить
                   </Button>
                 </div>
-                {getAvailableStudents().length === 0 && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Все студенты уже добавлены на курс
-                  </p>
-                )}
-              </Card>
+              </div>
 
-              {/* Список студентов на курсе */}
               <div>
-                <h4 className="mb-2 font-medium">Студенты на курсе ({selectedCourse?.students?.length || 0})</h4>
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="font-medium">Студенты курса</h4>
+                  <Badge>{selectedCourse?.students?.length || 0}</Badge>
+                </div>
+
                 {(selectedCourse?.students?.length || 0) === 0 ? (
-                  <Card className="flex flex-col items-center justify-center py-8 text-center">
-                    <Users className="mb-2 h-8 w-8 text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">На курсе пока нет студентов</p>
-                  </Card>
+                  <div className="rounded-lg border border-dashed py-10 text-center">
+                    <Users className="mx-auto mb-3 h-9 w-9 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">На курсе пока нет студентов.</p>
+                  </div>
                 ) : (
-                  <Card>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Студент</TableHead>
-                          <TableHead className="text-right">Действия</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedCourse?.students?.map((student) => (
-                          <TableRow key={student.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarFallback>
-                                    {student.username.substring(0, 2).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span>{student.username}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRemoveStudent(student.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </Card>
+                  <div className="max-h-[330px] space-y-2 overflow-y-auto pr-1">
+                    {selectedCourse?.students?.map((student) => (
+                      <div key={student.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarFallback>{student.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{student.username}</div>
+                            <div className="text-xs text-muted-foreground">ID: {student.id}</div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveStudent(student.id)}
+                          disabled={isSavingStudent}
+                        >
+                          <UserMinus className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
-            
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsStudentsDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setIsStudentsOpen(false)}>
                 Закрыть
               </Button>
             </DialogFooter>

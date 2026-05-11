@@ -24,14 +24,12 @@ type LoginRequest struct {
 }
 
 type AuthHandler struct {
-	userService  *services.UserService
-	eventService *services.EventService
+	userService *services.UserService
 }
 
-func NewAuthHandler(userService *services.UserService, eventService *services.EventService) *AuthHandler {
+func NewAuthHandler(userService *services.UserService) *AuthHandler {
 	return &AuthHandler{
-		userService:  userService,
-		eventService: eventService,
+		userService: userService,
 	}
 }
 
@@ -44,16 +42,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Преобразуем строковую роль в тип models.Role
 	var role models.Role
-	
-	// Если роль не указана, устанавливаем по умолчанию student
+
 	if req.Role == "" {
 		role = models.RoleStudent
-		// Логируем установку роли по умолчанию
 		utils.WriteInfoLog(0, "Auth", "Роль не указана, установлена по умолчанию: student")
 	} else {
-		// Обрабатываем указанную роль
 		switch req.Role {
 		case "admin":
 			role = models.RoleAdmin
@@ -68,7 +62,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		}
 	}
 
-	// Создаем пользователя через сервис
 	user, err := h.userService.CreateUser(req.Username, req.Password, role)
 	if err != nil {
 		utils.WriteErrorLog(0, "Auth", "Ошибка создания пользователя: "+err.Error())
@@ -76,27 +69,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Логируем успешную регистрацию
 	utils.WriteInfoLog(user.ID, "Auth", "Зарегистрирован новый пользователь: "+user.Username+" с ролью "+string(user.Role))
-	
-	// Записываем событие регистрации
 	utils.LogRegistration(user.ID, c.ClientIP(), c.GetHeader("User-Agent"))
-
-	// Также используем eventService если он доступен (для обратной совместимости)
-	if h.eventService != nil {
-		h.eventService.RecordUserRegistrationEvent(
-			user.ID,
-			c.ClientIP(),
-			c.GetHeader("User-Agent"),
-		)
-	}
 
 	claims := &Claims{
 		UserID:   user.ID,
 		Username: user.Username,
 		Role:     string(user.Role),
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // токен действителен 24 часа
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
@@ -128,7 +109,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Ищем пользователя по имени пользователя
 	users, err := h.userService.GetAllUsers()
 	if err != nil {
 		utils.WriteErrorLog(0, "Auth", "Ошибка получения пользователей: "+err.Error())
@@ -156,27 +136,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Логируем успешный вход
 	utils.WriteInfoLog(user.ID, "Auth", "Успешный вход пользователя: "+user.Username)
-	
-	// Записываем событие входа в систему
 	utils.LogLogin(user.ID, c.ClientIP(), c.GetHeader("User-Agent"))
-
-	// Также используем eventService если он доступен (для обратной совместимости)
-	if h.eventService != nil {
-		h.eventService.RecordUserLoginEvent(
-			user.ID,
-			c.ClientIP(),
-			c.GetHeader("User-Agent"),
-		)
-	}
 
 	claims := &Claims{
 		UserID:   user.ID,
 		Username: user.Username,
 		Role:     string(user.Role),
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // токен действителен 24 часа
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}

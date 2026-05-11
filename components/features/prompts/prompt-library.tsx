@@ -1,22 +1,27 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus, Brain, FileQuestion } from "lucide-react"
+import { Plus, Brain, FileQuestion, Upload, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PromptCard } from "./prompt-card"
 import { PromptFilters } from "./prompt-filters"
 import { PromptEditorDialog } from "./prompt-editor-dialog"
-import type { Prompt, CreatePromptRequest } from "@/lib/types"
+import { PromptUseDialog } from "./prompt-use-dialog"
+import type { Prompt, CreatePromptRequest, UpdatePromptRequest } from "@/lib/types"
+import { exportPrompts, importPrompts, listPrompts } from "@/lib/api/prompts"
+import { useRef } from "react"
 
 interface PromptLibraryProps {
   prompts: Prompt[]
   isLoading?: boolean
   onCreatePrompt: (data: CreatePromptRequest) => Promise<void>
-  onUpdatePrompt: (id: number, data: CreatePromptRequest) => Promise<void>
+  onUpdatePrompt: (id: number, data: UpdatePromptRequest) => Promise<void>
   onDeletePrompt: (id: number) => Promise<void>
-  onUsePrompt: (prompt: Prompt) => void
+  onUsePrompt: (prompt: Prompt, variables?: Record<string, string>) => void
+  onClonePrompt?: (prompt: Prompt) => void
+  onToggleFavorite?: (prompt: Prompt) => void
 }
 
 export function PromptLibrary({
@@ -26,23 +31,75 @@ export function PromptLibrary({
   onUpdatePrompt,
   onDeletePrompt,
   onUsePrompt,
+  onClonePrompt,
+  onToggleFavorite,
 }: PromptLibraryProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [category, setCategory] = useState("all")
-  const [visibility, setVisibility] = useState<"all" | "mine" | "public">("all")
+  const [visibility, setVisibility] = useState<"all" | "mine" | "public" | "favorites" | "templates">("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
+  const [useOpen, setUseOpen] = useState(false)
+  const [usingPrompt, setUsingPrompt] = useState<Prompt | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleExport = async () => {
+    try {
+      const items = await exportPrompts()
+      const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `prompts-export-${new Date().toISOString().slice(0,10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      alert("Export failed")
+    }
+  }
+
+  const onImportFilePicked = async (file?: File | null) => {
+    if (!file) return
+    try {
+      const text = await file.text()
+      const arr = JSON.parse(text) as any[]
+      const items: CreatePromptRequest[] = arr.map((p) => ({
+        title: p.title || p.name || "Untitled",
+        description: p.description || undefined,
+        prompt_text: p.prompt_text || p.content || "",
+        category: p.category || "essay",
+        is_public: !!p.is_public,
+        tags: Array.isArray(p.tags) ? p.tags : undefined,
+        collection: p.collection || undefined,
+        is_template: !!p.is_template,
+      }))
+      const res = await importPrompts(items)
+      // опционально перезагрузим список
+      // const refreshed = await listPrompts({ visibility: "all" })
+      // setPrompts(refreshed)
+      alert(`Imported ${res.created} prompts`)
+    } catch (e) {
+      console.error(e)
+      alert("Import failed: invalid JSON")
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
 
   const filteredPrompts = useMemo(() => {
     return prompts.filter((prompt) => {
+      const q = searchQuery.toLowerCase()
       const matchesSearch =
-        prompt.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        prompt.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        prompt.title.toLowerCase().includes(q) ||
+        (prompt.description?.toLowerCase() || "").includes(q)
       const matchesCategory = category === "all" || prompt.category === category
       const matchesVisibility =
         visibility === "all" ||
         (visibility === "public" && prompt.is_public) ||
-        (visibility === "mine" && !prompt.is_public)
+        (visibility === "mine" && !prompt.is_public) ||
+        (visibility === "favorites" && !!prompt.is_favorite) ||
+        (visibility === "templates" && !!prompt.is_template)
       return matchesSearch && matchesCategory && matchesVisibility
     })
   }, [prompts, searchQuery, category, visibility])
@@ -62,6 +119,19 @@ export function PromptLibrary({
       await onUpdatePrompt(editingPrompt.id, data)
     } else {
       await onCreatePrompt(data)
+    }
+  }
+
+  const requestUse = (prompt: Prompt) => {
+    // detect variables and open modal if any
+    const vars = (prompt.variables && prompt.variables.length)
+      ? prompt.variables
+      : Array.from((prompt.prompt_text || "").matchAll(/\{\{(\w+)\}\}/g)).map((m) => m[1])
+    if (vars.length > 0) {
+      setUsingPrompt(prompt)
+      setUseOpen(true)
+    } else {
+      onUsePrompt(prompt)
     }
   }
 
@@ -93,10 +163,27 @@ export function PromptLibrary({
           <h1 className="text-2xl font-bold">Prompt Library</h1>
           <p className="text-muted-foreground">Create and manage AI prompts for generating assignments</p>
         </div>
-        <Button onClick={handleCreate} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create Prompt
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport} className="gap-2">
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={(e) => onImportFilePicked(e.target.files?.[0])}
+          />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
+            <Upload className="h-4 w-4" />
+            Import
+          </Button>
+          <Button onClick={handleCreate} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Create Prompt
+          </Button>
+        </div>
       </div>
 
       <PromptFilters
@@ -133,14 +220,22 @@ export function PromptLibrary({
               key={prompt.id}
               prompt={prompt}
               onEdit={handleEdit}
-              onDelete={() => onDeletePrompt(prompt.id)}
-              onUse={onUsePrompt}
+              onDelete={(p) => onDeletePrompt(p.id)}
+              onUse={requestUse}
+              onClone={onClonePrompt}
+              onToggleFavorite={onToggleFavorite}
             />
           ))}
         </div>
       )}
 
       <PromptEditorDialog open={dialogOpen} onOpenChange={setDialogOpen} prompt={editingPrompt} onSave={handleSave} />
+      <PromptUseDialog
+        open={useOpen}
+        prompt={usingPrompt}
+        onOpenChange={setUseOpen}
+        onConfirm={(values) => { if (usingPrompt) onUsePrompt(usingPrompt, values); }}
+      />
     </div>
   )
 }

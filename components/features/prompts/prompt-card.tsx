@@ -1,6 +1,6 @@
 "use client"
 
-import { Brain, Edit2, Trash2, Copy, Globe, Lock } from "lucide-react"
+import { Brain, Edit2, Trash2, Copy, Globe, Lock, Star, PlusCircle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,9 +18,11 @@ interface PromptCardProps {
   onEdit: (prompt: Prompt) => void
   onDelete: (prompt: Prompt) => void
   onUse: (prompt: Prompt) => void
+  onClone?: (prompt: Prompt) => void
+  onToggleFavorite?: (prompt: Prompt) => void
 }
 
-export function PromptCard({ prompt, onEdit, onDelete, onUse }: PromptCardProps) {
+export function PromptCard({ prompt, onEdit, onDelete, onUse, onClone, onToggleFavorite }: PromptCardProps) {
   const categoryColors: Record<string, string> = {
     essay: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
     quiz: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
@@ -62,6 +64,12 @@ export function PromptCard({ prompt, onEdit, onDelete, onUse }: PromptCardProps)
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {onClone && (
+              <DropdownMenuItem onClick={() => onClone(prompt)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Clone
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => onUse(prompt)}>
               <Copy className="mr-2 h-4 w-4" />
               Use Prompt
@@ -87,6 +95,16 @@ export function PromptCard({ prompt, onEdit, onDelete, onUse }: PromptCardProps)
           ) : (
             <Lock className="h-3.5 w-3.5 text-muted-foreground" />
           )}
+          {onToggleFavorite && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-6 w-6 ${prompt.is_favorite ? "text-yellow-500" : "text-muted-foreground"}`}
+              onClick={() => onToggleFavorite(prompt)}
+            >
+              <Star className="h-4 w-4" fill={prompt.is_favorite ? "currentColor" : "none"} />
+            </Button>
+          )}
         </div>
 
         <Badge className={categoryColors[prompt.category] || categoryColors.default} variant="secondary">
@@ -111,6 +129,21 @@ export function PromptCard({ prompt, onEdit, onDelete, onUse }: PromptCardProps)
             )}
           </div>
         )}
+
+        {prompt.tags && prompt.tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {prompt.tags.slice(0, 4).map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-xs">#{tag}</Badge>
+            ))}
+            {prompt.tags.length > 4 && (
+              <Badge variant="secondary" className="text-xs">+{prompt.tags.length - 4}</Badge>
+            )}
+          </div>
+        )}
+
+        <div className="mt-2 text-xs text-muted-foreground">
+          Used {prompt.use_count || 0} times
+        </div>
       </div>
 
       <Button

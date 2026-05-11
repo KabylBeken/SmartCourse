@@ -8,10 +8,12 @@ import (
 type CourseRepository interface {
 	GetAll() ([]models.Course, error)
 	GetByID(id uint) (*models.Course, error)
+	GetByIDWithDetails(id uint) (*models.Course, error)
 	Create(course *models.Course) error
 	Update(id uint, course *models.Course) error
 	Delete(id uint) error
 	GetCoursesByTeacherID(teacherID uint) ([]models.Course, error)
+	GetCoursesByTeacherIDWithDetails(teacherID uint) ([]models.Course, error)
 	GetCoursesByStudentID(studentID uint) ([]models.Course, error)
 	AddStudentToCourse(courseID, studentID uint) error
 	RemoveStudentFromCourse(courseID, studentID uint) error
@@ -38,6 +40,12 @@ func (r *CourseRepositoryImpl) GetByID(id uint) (*models.Course, error) {
 	return &course, err
 }
 
+func (r *CourseRepositoryImpl) GetByIDWithDetails(id uint) (*models.Course, error) {
+	var course models.Course
+	err := r.db.Preload("Students").Preload("Assignments").First(&course, id).Error
+	return &course, err
+}
+
 func (r *CourseRepositoryImpl) Create(course *models.Course) error {
 	return r.db.Create(course).Error
 }
@@ -56,6 +64,12 @@ func (r *CourseRepositoryImpl) GetCoursesByTeacherID(teacherID uint) ([]models.C
 	return courses, err
 }
 
+func (r *CourseRepositoryImpl) GetCoursesByTeacherIDWithDetails(teacherID uint) ([]models.Course, error) {
+	var courses []models.Course
+	err := r.db.Preload("Students").Preload("Assignments").Where("teacher_id = ?", teacherID).Find(&courses).Error
+	return courses, err
+}
+
 func (r *CourseRepositoryImpl) GetCoursesByStudentID(studentID uint) ([]models.Course, error) {
 	var courses []models.Course
 	err := r.db.Joins("JOIN course_students ON courses.id = course_students.course_id").
@@ -65,12 +79,12 @@ func (r *CourseRepositoryImpl) GetCoursesByStudentID(studentID uint) ([]models.C
 }
 
 func (r *CourseRepositoryImpl) AddStudentToCourse(courseID, studentID uint) error {
-	return r.db.Exec("INSERT INTO course_students (course_id, user_id) VALUES (?, ?)", 
+	return r.db.Exec("INSERT INTO course_students (course_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
 		courseID, studentID).Error
 }
 
 func (r *CourseRepositoryImpl) RemoveStudentFromCourse(courseID, studentID uint) error {
-	return r.db.Exec("DELETE FROM course_students WHERE course_id = ? AND user_id = ?", 
+	return r.db.Exec("DELETE FROM course_students WHERE course_id = ? AND user_id = ?",
 		courseID, studentID).Error
 }
 

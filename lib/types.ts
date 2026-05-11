@@ -72,6 +72,8 @@ export interface Assignment {
   description: string
   course_id: number
   due_date: string        // ISO формат
+  max_score?: number
+  type?: "essay" | "test"
   course?: Course
   grades?: Grade[]
   created_at: string
@@ -162,8 +164,13 @@ export interface GradingCriteria {
   assignment_id: number
   name: string
   description: string
-  max_points: number
+  max_score: number
   weight: number
+  auto_checkable: boolean
+  check_prompt?: string
+  order_index?: number
+  difficulty?: "easy" | "medium" | "hard"
+  required?: boolean
 }
 
 export interface Submission {
@@ -186,17 +193,40 @@ export interface SubmissionEvaluation {
 
 export interface Prompt {
   id: number
-  name: string
-  description: string
-  content: string
+  title: string
+  description?: string
+  prompt_text: string
   category: string
+  is_public: boolean
+  is_favorite?: boolean
+  use_count?: number
   created_at: string
   updated_at: string
+  teacher_id: number
+  tags?: string[]
+  collection?: string | null
+  variables?: string[]
+  is_template?: boolean
 }
 
 export interface CreatePromptRequest {
-  name: string
-  description: string
-  content: string
+  title: string
+  description?: string
+  prompt_text: string
   category: string
+  is_public: boolean
+  tags?: string[]
+  collection?: string | null
+  is_template?: boolean
+}
+
+export interface UpdatePromptRequest {
+  title?: string
+  description?: string
+  prompt_text?: string
+  category?: string
+  is_public?: boolean
+  tags?: string[]
+  collection?: string | null
+  is_favorite?: boolean
 }

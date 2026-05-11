@@ -1,103 +1,85 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { DashboardLayout } from "@/components/layouts/dashboard-layout"
 import { PromptLibrary } from "@/components/features/prompts/prompt-library"
 import { useToast } from "@/components/ui/use-toast"
-import type { Prompt, CreatePromptRequest } from "@/lib/types"
-
-// Mock data for demonstration
-const mockPrompts: Prompt[] = [
-  {
-    id: 1,
-    title: "Essay Topic Generator",
-    description: "Generate thought-provoking essay topics for various subjects",
-    prompt_text: "Generate 5 essay topics for {{subject}} at the {{grade_level}} level focusing on {{skill}}.",
-    category: "essay",
-    is_public: true,
-    created_at: "2024-01-15",
-    updated_at: "2024-01-15",
-    teacher_id: 1,
-    variables: ["subject", "grade_level", "skill"],
-  },
-  {
-    id: 2,
-    title: "Quiz Question Builder",
-    description: "Create multiple choice questions with distractors",
-    prompt_text: "Create {{count}} multiple choice questions about {{topic}} with 4 options each.",
-    category: "quiz",
-    is_public: false,
-    created_at: "2024-01-10",
-    updated_at: "2024-01-12",
-    teacher_id: 1,
-    variables: ["count", "topic"],
-  },
-  {
-    id: 3,
-    title: "Project Rubric Generator",
-    description: "Generate detailed project rubrics with clear criteria",
-    prompt_text: "Create a rubric for a {{project_type}} project in {{subject}} with {{criteria_count}} criteria.",
-    category: "project",
-    is_public: true,
-    created_at: "2024-01-08",
-    updated_at: "2024-01-08",
-    teacher_id: 1,
-    variables: ["project_type", "subject", "criteria_count"],
-  },
-]
+import type { Prompt, CreatePromptRequest, UpdatePromptRequest } from "@/lib/types"
+import {
+  listPrompts,
+  createPrompt as apiCreatePrompt,
+  updatePrompt as apiUpdatePrompt,
+  deletePrompt as apiDeletePrompt,
+  clonePrompt as apiClonePrompt,
+  toggleFavorite as apiToggleFavorite,
+  incrementUseCount,
+} from "@/lib/api/prompts"
 
 export default function PromptsPage() {
-  const [prompts, setPrompts] = useState<Prompt[]>(mockPrompts)
+  const [prompts, setPrompts] = useState<Prompt[]>([])
+  const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const data = await listPrompts({ visibility: "all" })
+        setPrompts(data)
+      } catch (e) {
+        console.error(e)
+        toast({ title: "Failed to load prompts", description: String(e), variant: "destructive" })
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [toast])
+
   const handleCreatePrompt = async (data: CreatePromptRequest) => {
-    // Simulate API call
-    const newPrompt: Prompt = {
-      id: Date.now(),
-      ...data,
-      description: data.description || "",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      teacher_id: 1,
-      variables: [...data.prompt_text.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]),
-    }
-    setPrompts((prev) => [newPrompt, ...prev])
-    toast({ title: "Prompt created", description: "Your new prompt has been saved." })
+    const created = await apiCreatePrompt(data)
+    setPrompts((prev) => [created, ...prev])
+    toast({ title: "Prompt created", description: created.title })
   }
 
-  const handleUpdatePrompt = async (id: number, data: CreatePromptRequest) => {
-    setPrompts((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              ...data,
-              updated_at: new Date().toISOString(),
-              variables: [...data.prompt_text.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]),
-            }
-          : p,
-      ),
-    )
-    toast({ title: "Prompt updated", description: "Your changes have been saved." })
+  const handleUpdatePrompt = async (id: number, data: UpdatePromptRequest) => {
+    const updated = await apiUpdatePrompt(id, data)
+    setPrompts((prev) => prev.map((p) => (p.id === id ? updated : p)))
+    toast({ title: "Prompt updated", description: updated.title })
   }
 
   const handleDeletePrompt = async (id: number) => {
+    await apiDeletePrompt(id)
     setPrompts((prev) => prev.filter((p) => p.id !== id))
-    toast({ title: "Prompt deleted", description: "The prompt has been removed." })
+    toast({ title: "Prompt deleted" })
   }
 
-  const handleUsePrompt = (prompt: Prompt) => {
-    toast({ title: "Using prompt", description: `Navigating to create assignment with "${prompt.title}"` })
+  const handleClonePrompt = async (prompt: Prompt) => {
+    const cloned = await apiClonePrompt(prompt.id)
+    setPrompts((prev) => [cloned, ...prev])
+    toast({ title: "Cloned", description: cloned.title })
+  }
+
+  const handleToggleFavorite = async (prompt: Prompt) => {
+    const next = !prompt.is_favorite
+    await apiToggleFavorite(prompt.id, next)
+    setPrompts((prev) => prev.map((p) => (p.id === prompt.id ? { ...p, is_favorite: next } : p)))
+  }
+
+  const handleUsePrompt = async (prompt: Prompt, variables?: Record<string, string>) => {
+    const compiled = await incrementUseCount(prompt.id, variables || {})
+    toast({ title: "Prompt ready", description: compiled.compiled || prompt.title })
   }
 
   return (
     <DashboardLayout userRole="teacher">
       <PromptLibrary
         prompts={prompts}
+        isLoading={loading}
         onCreatePrompt={handleCreatePrompt}
         onUpdatePrompt={handleUpdatePrompt}
         onDeletePrompt={handleDeletePrompt}
         onUsePrompt={handleUsePrompt}
+        onClonePrompt={handleClonePrompt}
+        onToggleFavorite={handleToggleFavorite}
       />
     </DashboardLayout>
   )

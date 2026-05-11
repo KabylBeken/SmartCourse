@@ -13,6 +13,7 @@ const mockAssignment: Assignment = {
   due_date: "2024-02-15",
   max_score: 100,
   created_at: "2024-01-01",
+  updated_at: "2024-01-01",
 }
 
 const mockCriteria: GradingCriteria[] = [

@@ -5,20 +5,48 @@ import (
 	"net/http"
 	"strconv"
 
+	"rest-project/internal/db"
 	"rest-project/internal/services"
-	"rest-project/internal/models"
+	"rest-project/internal/services/notifier"
 )
 
 type GradeHandler struct {
-	service      *services.GradeService
-	eventService *services.EventService
+	service *services.GradeService
+	hub     *notifier.Hub // optional
 }
 
-func NewGradeHandler(service *services.GradeService, eventService *services.EventService) *GradeHandler {
+func NewGradeHandler(service *services.GradeService) *GradeHandler {
 	return &GradeHandler{
-		service:      service,
-		eventService: eventService,
+		service: service,
 	}
+}
+
+// SetHub — подключает WebSocket-хаб для нотификаций (опционально).
+func (h *GradeHandler) SetHub(hub *notifier.Hub) {
+	h.hub = hub
+}
+
+// notifyStudent — отправляет студенту событие grade_updated.
+func (h *GradeHandler) notifyStudent(studentID, assignmentID uint, score float64) {
+	if h.hub == nil {
+		return
+	}
+	var meta struct {
+		AssignmentTitle string `gorm:"column:assignment_title"`
+		CourseTitle     string `gorm:"column:course_title"`
+	}
+	_ = db.DB.Table("assignments a").
+		Select("a.title AS assignment_title, c.title AS course_title").
+		Joins("JOIN courses c ON c.id = a.course_id").
+		Where("a.id = ?", assignmentID).
+		Limit(1).
+		Scan(&meta).Error
+	h.hub.SendToUser(studentID, "grade_updated", map[string]any{
+		"assignment_id":    assignmentID,
+		"assignment_title": meta.AssignmentTitle,
+		"course_title":     meta.CourseTitle,
+		"score":            score,
+	})
 }
 
 // GetAssignmentGrades получает все оценки для конкретного задания
@@ -57,7 +85,6 @@ func (h *GradeHandler) CreateGrade(c *gin.Context) {
 		return
 	}
 
-	// Получаем ID преподавателя из контекста (установлен middleware)
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
@@ -79,14 +106,7 @@ func (h *GradeHandler) CreateGrade(c *gin.Context) {
 		return
 	}
 
-	// Логируем событие создания оценки
-	if h.eventService != nil {
-		h.eventService.LogEvent(models.EventGradeCreated, teacherID, map[string]any{
-			"grade_id":      grade.ID,
-			"assignment_id": assignmentID,
-			"student_id":    input.StudentID,
-		})
-	}
+	go h.notifyStudent(input.StudentID, uint(assignmentID), input.Score)
 
 	c.JSON(http.StatusCreated, grade)
 }
@@ -109,7 +129,6 @@ func (h *GradeHandler) UpdateGrade(c *gin.Context) {
 		return
 	}
 
-	// Получаем ID преподавателя из контекста
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
@@ -130,11 +149,8 @@ func (h *GradeHandler) UpdateGrade(c *gin.Context) {
 		return
 	}
 
-	// Логируем событие обновления оценки
-	if h.eventService != nil {
-		h.eventService.LogEvent(models.EventGradeUpdated, teacherID, map[string]any{
-			"grade_id": gradeID,
-		})
+	if grade != nil {
+		go h.notifyStudent(grade.StudentID, grade.AssignmentID, grade.Score)
 	}
 
 	c.JSON(http.StatusOK, grade)
@@ -148,7 +164,6 @@ func (h *GradeHandler) DeleteGrade(c *gin.Context) {
 		return
 	}
 
-	// Получаем ID преподавателя из контекста
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
@@ -163,19 +178,11 @@ func (h *GradeHandler) DeleteGrade(c *gin.Context) {
 		return
 	}
 
-	// Логируем событие удаления оценки
-	if h.eventService != nil {
-		h.eventService.LogEvent(models.EventGradeDeleted, teacherID, map[string]any{
-			"grade_id": gradeID,
-		})
-	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "Оценка успешно удалена"})
 }
 
 // GetStudentGrades получает все оценки студента
 func (h *GradeHandler) GetStudentGrades(c *gin.Context) {
-	// Получаем ID студента из контекста
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
@@ -183,31 +190,11 @@ func (h *GradeHandler) GetStudentGrades(c *gin.Context) {
 	}
 
 	studentID := userID.(uint)
-	
-	// Логируем запрос
-	if h.eventService != nil {
-		h.eventService.LogEvent("get_student_grades", studentID, map[string]any{
-			"student_id": studentID,
-		})
-	}
 
 	grades, err := h.service.GetGradesByStudent(studentID)
 	if err != nil {
-		// Логируем ошибку
-		if h.eventService != nil {
-			h.eventService.LogEvent("get_student_grades_error", studentID, map[string]any{
-				"error": err.Error(),
-			})
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении оценок"})
 		return
-	}
-
-	// Логируем успешное выполнение
-	if h.eventService != nil {
-		h.eventService.LogEvent("get_student_grades_success", studentID, map[string]any{
-			"grades_count": len(grades),
-		})
 	}
 
 	c.JSON(http.StatusOK, grades)
