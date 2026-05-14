@@ -2,13 +2,18 @@
  * Серверный клиент Google Gemini AI.
  * Қолданылатын модельдер:
  *  - gemini-2.5-flash-preview-tts  → TTS (text → audio)
- *  - gemini-2.0-flash               → Audio understanding + Chat
+ *  - gemini-2.0-flash-lite          → Audio understanding + Chat (free tier)
  *
  * Кілт: GEMINI_API_KEY (.env.local)
  */
 import { GoogleGenAI } from "@google/genai"
 import { config as loadEnvFile } from "dotenv"
 import { resolve } from "path"
+
+// Модельдер — free tier лимиттерімен жұмыс істейтіндер
+const CHAT_MODEL = "gemini-2.0-flash-lite"
+const AUDIO_MODEL = "gemini-2.0-flash-lite"
+const TTS_MODEL = "gemini-2.5-flash-preview-tts"
 
 let envLoaded = false
 
@@ -33,6 +38,21 @@ function getClient(): GoogleGenAI {
     )
   }
   return new GoogleGenAI({ apiKey })
+}
+
+/** Retry helper — 429 rate-limit кезінде қайта жіберу */
+async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      const isRateLimit = msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")
+      if (!isRateLimit || attempt >= retries) throw e
+      const delay = Math.min(5000 * (attempt + 1), 30000)
+      await new Promise((r) => setTimeout(r, delay))
+    }
+  }
 }
 
 // ─── System prompt ──────────────────────────────────────────────────────────
@@ -73,15 +93,16 @@ export async function geminiChat(
     parts: [{ text: m.content }],
   }))
 
-  const response = await client.models.generateContent({
-    model: "gemini-2.0-flash",
-    config: {
-      systemInstruction: `${TEACHER_SYSTEM_PROMPT}\n\n${langHint}`,
-    },
-    contents,
+  return withRetry(async () => {
+    const response = await client.models.generateContent({
+      model: CHAT_MODEL,
+      config: {
+        systemInstruction: `${TEACHER_SYSTEM_PROMPT}\n\n${langHint}`,
+      },
+      contents,
+    })
+    return response.text ?? ""
   })
-
-  return response.text ?? ""
 }
 
 // ─── Audio Understanding (audio → text) ─────────────────────────────────────
@@ -92,27 +113,28 @@ export async function geminiAudioUnderstand(
 ): Promise<string> {
   const client = getClient()
 
-  const response = await client.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data: audioBase64,
+  return withRetry(async () => {
+    const response = await client.models.generateContent({
+      model: AUDIO_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: audioBase64,
+              },
             },
-          },
-          {
-            text: "Transcribe this audio exactly as spoken. Return only the transcription, nothing else.",
-          },
-        ],
-      },
-    ],
+            {
+              text: "Transcribe this audio exactly as spoken. Return only the transcription, nothing else.",
+            },
+          ],
+        },
+      ],
+    })
+    return response.text?.trim() ?? ""
   })
-
-  return response.text?.trim() ?? ""
 }
 
 // ─── TTS (text → audio base64 PCM) ─────────────────────────────────────────
@@ -126,35 +148,37 @@ export async function geminiTTS(
 
   const langPrefix = language === "ru" ? "Say in Russian:" : "Say in English:"
 
-  const response = await client.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: `${langPrefix} ${text}` }],
-      },
-    ],
-    config: {
-      responseModalities: ["AUDIO"],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: voice,
+  return withRetry(async () => {
+    const response = await client.models.generateContent({
+      model: TTS_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `${langPrefix} ${text}` }],
+        },
+      ],
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: voice,
+            },
           },
         },
       },
-    },
-  })
+    })
 
-  const candidate = response.candidates?.[0]
-  const part = candidate?.content?.parts?.[0]
+    const candidate = response.candidates?.[0]
+    const part = candidate?.content?.parts?.[0]
 
-  if (part?.inlineData?.data) {
-    return {
-      audioBase64: part.inlineData.data,
-      mimeType: part.inlineData.mimeType ?? "audio/L16;rate=24000",
+    if (part?.inlineData?.data) {
+      return {
+        audioBase64: part.inlineData.data,
+        mimeType: part.inlineData.mimeType ?? "audio/L16;rate=24000",
+      }
     }
-  }
 
-  throw new Error("Gemini TTS жауабында аудио табылмады")
+    throw new Error("Gemini TTS жауабында аудио табылмады")
+  })
 }
