@@ -21,6 +21,7 @@ import {
   Shield,
   BarChart3,
   CalendarDays,
+  Mic,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -58,6 +59,7 @@ const studentNavItems = [
   { href: "/student/calendar", label: "Кесте / Дедлайндар", icon: CalendarDays },
   { href: "/student/criteria", label: "Критерии", icon: Target },
   { href: "/student/feedback", label: "Обратная связь", icon: MessageSquare },
+  { href: "/student/speech-teacher", label: "Речь и аудио", icon: Mic },
   { href: "/settings", label: "Настройки", icon: Settings },
 ]
 
