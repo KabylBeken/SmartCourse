@@ -144,6 +144,9 @@ func SetupRoutes(r *gin.Engine) {
 	tutorSvc := tutor.NewService(db.DB, tutorClient)
 	tutorHandler := delivery.NewTutorHandler(tutorSvc)
 
+	// Essay AI Review (teacher)
+	essayReviewHandler := delivery.NewEssayReviewHandler(tutorClient)
+
 	// Student Calendar
 	calendarHandler := delivery.NewCalendarHandler(db.DB)
 	plagiarismHandler := delivery.NewPlagiarismHandler(plagiarismSvcForHandler, queueSvc)
@@ -197,6 +200,8 @@ func SetupRoutes(r *gin.Engine) {
 			teacherRoutes.PUT("/assignments/:id", assignmentHandler.UpdateAssignment)
 			teacherRoutes.PUT("/assignments/:id/criteria", assignmentHandler.UpdateAssignmentCriteria)
 			teacherRoutes.DELETE("/assignments/:id", assignmentHandler.DeleteAssignment)
+			teacherRoutes.POST("/assignments/:id/ai-review", essayReviewHandler.Review)
+			teacherRoutes.GET("/assignments/:id/submissions", gradeHandler.GetAssignmentSubmissions)
 			teacherRoutes.GET("/assignments/:id/grades", gradeHandler.GetAssignmentGrades)
 			teacherRoutes.POST("/assignments/:id/grades", gradeHandler.CreateGrade)
 			teacherRoutes.PUT("/grades/:id", gradeHandler.UpdateGrade)

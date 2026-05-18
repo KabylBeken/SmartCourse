@@ -35,7 +35,34 @@ export interface UpdateGradeRequest {
   feedback?: string
 }
 
+export interface AssignmentSubmission {
+  id: number
+  student_id: number
+  username: string
+  content: string
+  answers: string
+  status: "draft" | "submitted" | "late" | "graded"
+  word_count: number
+  submitted_at: string | null
+  grade_id: number | null
+  score: number | null
+  feedback: string | null
+}
+
 // === Teacher routes ===
+
+export interface AIReviewResult {
+  suggested_score: number
+  feedback: string
+}
+
+export async function reviewEssayWithAI(assignmentId: number, content: string): Promise<AIReviewResult> {
+  return apiClient.post<AIReviewResult>(`/api/teacher/assignments/${assignmentId}/ai-review`, { content })
+}
+
+export async function getAssignmentSubmissions(assignmentId: number): Promise<AssignmentSubmission[]> {
+  return apiClient.get<AssignmentSubmission[]>(`/api/teacher/assignments/${assignmentId}/submissions`)
+}
 
 export async function getAssignmentGrades(assignmentId: number): Promise<Grade[]> {
   return apiClient.get<Grade[]>(`/api/teacher/assignments/${assignmentId}/grades`)

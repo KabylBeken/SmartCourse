@@ -15,14 +15,33 @@ import { getStudentCalendar, type StudentCalendarEvent } from "@/lib/api/student
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const EVENT_LABELS: Record<string, string> = {
+  lesson:   "Сабақ",
+  deadline: "Deadline",
+  exam:     "Емтихан",
+  holiday:  "Демалыс",
+  meeting:  "Кездесу",
+  other:    "Басқа",
+}
+
+const EVENT_COLORS: Record<string, string> = {
+  lesson:   "#6366f1",
+  deadline: "#ef4444",
+  exam:     "#f97316",
+  holiday:  "#22c55e",
+  meeting:  "#3b82f6",
+  other:    "#8b5cf6",
+}
+
 function toFC(ev: StudentCalendarEvent): EventInput {
   return {
     id: String(ev.id),
     title: ev.title,
     start: ev.start,
+    end: ev.end,
     allDay: ev.all_day,
-    backgroundColor: ev.color || "#ef4444",
-    borderColor: ev.color || "#ef4444",
+    backgroundColor: ev.color || EVENT_COLORS[ev.type] || "#6366f1",
+    borderColor: ev.color || EVENT_COLORS[ev.type] || "#6366f1",
     extendedProps: { ...ev },
   }
 }
@@ -83,12 +102,14 @@ export default function StudentCalendarPage() {
 
         {/* Legend */}
         <div className="flex flex-wrap gap-3">
-          <Badge variant="outline" className="gap-1.5 text-xs">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Deadline
-          </Badge>
+          {Object.entries(EVENT_LABELS).map(([type, label]) => (
+            <Badge key={type} variant="outline" className="gap-1.5 text-xs">
+              <span className="h-2 w-2 rounded-full" style={{ background: EVENT_COLORS[type] }} />
+              {label}
+            </Badge>
+          ))}
           <Badge variant="outline" className="gap-1.5 text-xs text-muted-foreground">
-            Оқиғаны басу — тапсырма ашылады
+            Тапсырма оқиғасын басу → ашылады
           </Badge>
         </div>
 

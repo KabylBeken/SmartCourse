@@ -4,6 +4,7 @@ export interface StudentCalendarEvent {
   id: number
   title: string
   start: string
+  end?: string
   all_day: boolean
   assignment_id: number
   course_title: string
